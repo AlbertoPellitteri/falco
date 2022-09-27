@@ -3221,10 +3221,6 @@
   priority: WARNING
   tags: [container, filesystem, mitre_initial_access]
 
-# Application rules have moved to application_rules.yaml. Please look
-# there if you want to enable them by adding to
-# falco_rules.local.yaml.
-
 - list: known_binaries_to_read_environment_variables_from_proc_files
   items: [scsi_id, argoexec]
 
@@ -3238,3 +3234,25 @@
     command=%proc.cmdline file=%fd.name parent=%proc.pname gparent=%proc.aname[2] ggparent=%proc.aname[3] gggparent=%proc.aname[4] container_id=%container.id image=%container.image.repository)
   priority: WARNING
   tags: [filesystem, mitre_credential_access, mitre_discovery]
+
+- macro: private_aws_credentials
+  condition: >
+    (proc.args icontains "aws_access_key_id" or
+    proc.args icontains "aws_secret_access_key" or
+    proc.args icontains "aws_session_token" or
+    proc.args icontains "accesskeyid" or
+    proc.args icontains "secretaccesskey")
+
+- rule: Find AWS Credentials
+  desc: Find or grep AWS credentials
+  condition: >
+    spawned_process and
+    ((grep_commands and private_aws_credentials) or
+    (proc.name = "find" and proc.args endswith ".aws/credentials"))
+  output: Detected AWS credentials search activity (user.name=%user.name user.loginuid=%user.loginuid proc.cmdline=%proc.cmdline container.id=%container.id container_name=%container.name evt.type=%evt.type evt.res=%evt.res proc.pid=%proc.pid proc.cwd=%proc.cwd proc.ppid=%proc.ppid proc.pcmdline=%proc.pcmdline proc.sid=%proc.sid proc.exepath=%proc.exepath user.uid=%user.uid user.loginname=%user.loginname group.gid=%group.gid group.name=%group.name container.name=%container.name image=%container.image.repository:%container.image.tag)
+  priority: WARNING
+  tags: [mitre_credential_access, process, aws]
+
+# Application rules have moved to application_rules.yaml. Please look
+# there if you want to enable them by adding to
+# falco_rules.local.yaml.
